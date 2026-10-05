@@ -1,686 +1,1144 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#155E4A" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Shadow Hunters</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>Shadow Hunters</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet (mappa) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <style>
-    * { -webkit-tap-highlight-color: transparent; }
-    html, body { height: 100%; margin: 0; overscroll-behavior: none; }
-    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; touch-action: manipulation; }
-    #app { height: 100vh; height: 100dvh; }
-    #map { height: 100%; width: 100%; background: #e8efe9; }
-    .shadow-title { letter-spacing: -0.02em; }
-    button, select { touch-action: manipulation; }
-    .btn-press:active { transform: scale(0.96); }
-    .star-btn { font-size: 1.6rem; line-height: 1; transition: transform .1s; }
-    .star-btn:active { transform: scale(1.25); }
-    .leaflet-top.leaflet-right { top: env(safe-area-inset-top, 0px); }
-    .leaflet-control-zoom a { font-weight: 700; }
-  </style>
+<style>
+/* ============================================================
+   SHADOW HUNTERS — UI iOS 17/18
+   Design tokens: materiali, etichette, raggi, ombre, motion
+   ============================================================ */
+:root{
+  /* materiali */
+  --glass:            rgba(255,255,255,.68);
+  --glass-strong:     rgba(255,255,255,.86);
+  --glass-border:     rgba(255,255,255,.62);
+  --sheet-bg:         rgba(250,250,252,.90);
+
+  /* gerarchia etichette iOS */
+  --text:             #1c1c1e;
+  --text-2:           rgba(60,60,67,.60);
+  --text-3:           rgba(60,60,67,.30);
+
+  /* riempimenti e separatori */
+  --fill:             rgba(120,120,128,.12);
+  --fill-2:           rgba(120,120,128,.20);
+  --separator:        rgba(60,60,67,.16);
+
+  /* accenti semantici */
+  --hot:              #ff3b30;   /* systemRed  → zona di calore */
+  --hot-soft:         rgba(255,59,48,.12);
+  --cool:             #007aff;   /* systemBlue → zona d'ombra  */
+  --cool-soft:        rgba(0,122,255,.12);
+  --gold:             #ffb800;   /* stelle */
+  --green:            #34c759;   /* scuola */
+
+  /* geometria */
+  --r-xs: 12px; --r-sm: 16px; --r-md: 22px; --r-lg: 28px; --r-pill: 999px;
+
+  /* ombre morbide e diffuse */
+  --shadow-lift:  0 12px 34px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.05);
+  --shadow-soft:  0 6px 20px rgba(0,0,0,.10), 0 1px 4px rgba(0,0,0,.04);
+  --shadow-inner: inset 0 1px 0 rgba(255,255,255,.55);
+
+  /* motion (spring iOS) */
+  --spring: cubic-bezier(.32,.72,0,1);
+  --pop:    cubic-bezier(.34,1.56,.64,1);
+
+  --top-cluster: 118px;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --glass:        rgba(28,28,30,.66);
+    --glass-strong: rgba(44,44,46,.86);
+    --glass-border: rgba(255,255,255,.14);
+    --sheet-bg:     rgba(28,28,30,.92);
+    --text:         #ffffff;
+    --text-2:       rgba(235,235,245,.62);
+    --text-3:       rgba(235,235,245,.32);
+    --fill:         rgba(120,120,128,.24);
+    --fill-2:       rgba(120,120,128,.36);
+    --separator:    rgba(235,235,245,.18);
+    --hot:          #ff453a;
+    --cool:         #0a84ff;
+    --shadow-lift:  0 12px 34px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.3);
+    --shadow-soft:  0 6px 20px rgba(0,0,0,.4);
+    --shadow-inner: inset 0 1px 0 rgba(255,255,255,.07);
+  }
+}
+
+/* ---------- base ---------- */
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0;overscroll-behavior:none}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Inter","Helvetica Neue",system-ui,sans-serif;
+  color:var(--text);background:#e9eaec;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;letter-spacing:-.01em;touch-action:manipulation;
+}
+button,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+.ic{width:20px;height:20px;display:block;fill:currentColor;flex:none}
+.ic-stroke{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ---------- glassmorphism ---------- */
+.glass{
+  background:var(--glass);
+  -webkit-backdrop-filter:saturate(180%) blur(28px);
+  backdrop-filter:saturate(180%) blur(28px);
+  border:.5px solid var(--glass-border);
+  box-shadow:var(--shadow-lift), var(--shadow-inner);
+}
+.glass-strong{
+  background:var(--sheet-bg);
+  -webkit-backdrop-filter:saturate(180%) blur(34px);
+  backdrop-filter:saturate(180%) blur(34px);
+  border:.5px solid var(--glass-border);
+  box-shadow:var(--shadow-lift), var(--shadow-inner);
+}
+@supports not ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+  .glass{background:var(--glass-strong)}
+}
+
+/* ============================================================
+   MAPPA (livello 0, sotto la UI)
+   ============================================================ */
+#map{position:absolute;inset:0;z-index:0;background:#e9eaec}
+.leaflet-container{font-family:inherit;background:#e9eaec}
+body.armed #map{cursor:crosshair}
+.leaflet-top.leaflet-right{top:calc(env(safe-area-inset-top,0px) + var(--top-cluster))}
+.leaflet-control-zoom{border:0!important;border-radius:var(--r-xs)!important;overflow:hidden;box-shadow:var(--shadow-soft)!important}
+.leaflet-control-zoom a{
+  width:38px;height:38px;line-height:38px;font-size:20px;font-weight:500;
+  color:var(--text);background:var(--glass-strong);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  border-bottom:.5px solid var(--separator);transition:background .2s
+}
+.leaflet-control-zoom a:hover{background:var(--fill)}
+.leaflet-control-attribution{
+  background:var(--glass)!important;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  border-radius:var(--r-xs) 0 0 var(--r-xs);font-size:10px;color:var(--text-2);padding:2px 6px;box-shadow:none!important
+}
+.leaflet-control-attribution a{color:var(--text-2)}
+.leaflet-popup-content-wrapper{
+  border-radius:var(--r-sm);background:var(--glass-strong);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);
+  box-shadow:var(--shadow-lift);color:var(--text);border:.5px solid var(--glass-border)
+}
+.leaflet-popup-content{margin:12px 14px;font-size:13px;line-height:1.45}
+.leaflet-popup-tip{background:var(--glass-strong)}
+.leaflet-popup-close-button{color:var(--text-2)!important;padding:6px 6px 0 0!important}
+/* le tile OSM sono "colorate": le desaturo per mantenere il look minimale iOS.
+   Il filtro è solo sul pane delle tile → i marker restano vividi. */
+.leaflet-tile-pane{filter:saturate(.72) contrast(.95) brightness(1.05)}
+@media (prefers-color-scheme: dark){
+  .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.88) contrast(1.02) saturate(.75)}
+}
+body.map-failed #map::after{
+  content:"🗺️";position:absolute;inset:0;display:grid;place-items:center;
+  font-size:48px;opacity:.25;pointer-events:none
+}
+
+/* ============================================================
+   CLUSTER SUPERIORE
+   ============================================================ */
+.ui-top{
+  position:absolute;top:0;left:0;right:0;z-index:20;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 0;
+  display:grid;gap:10px;justify-items:center;pointer-events:none
+}
+.ui-top>*{pointer-events:auto;width:100%;max-width:560px}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand{
+  display:flex;align-items:center;gap:9px;padding:7px 14px 7px 8px;border-radius:var(--r-pill);
+  font-size:14px;font-weight:700;letter-spacing:-.015em
+}
+.brand-mark{
+  width:26px;height:26px;border-radius:9px;display:grid;place-items:center;font-size:14px;
+  background:linear-gradient(160deg,#ffd60a,#ff9f0a);box-shadow:0 2px 6px rgba(255,159,10,.4)
+}
+.lang-wrap{position:relative;display:flex;align-items:center;gap:4px;padding:6px 10px 6px 12px;border-radius:var(--r-pill)}
+.lang-wrap .ic{width:17px;height:17px;opacity:.65}
+.lang-wrap .chev{width:14px;height:14px;opacity:.45;margin-left:-2px}
+#langSel{
+  appearance:none;-webkit-appearance:none;border:0;background:transparent;
+  font-size:13px;font-weight:600;padding:2px;max-width:104px;text-overflow:ellipsis
+}
+#langSel:focus-visible{outline:2px solid var(--cool);outline-offset:2px;border-radius:6px}
+
+/* segmented control iOS */
+.segmented{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;padding:3px;border-radius:var(--r-sm);background:var(--fill)}
+.segmented .seg-ind{
+  position:absolute;top:3px;left:3px;width:calc(50% - 3px);height:calc(100% - 6px);
+  border-radius:13px;background:var(--glass-strong);box-shadow:0 3px 10px rgba(0,0,0,.14);
+  transition:transform .38s var(--spring),opacity .26s ease
+}
+/* nessuna modalità scelta → nessuna "pillola" attiva (stato neutro) */
+.segmented.modes[data-active=""] .seg-ind{opacity:0;transform:scale(.92)}
+.segmented button{
+  position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:10px;border:0;background:transparent;border-radius:13px;
+  font-size:14px;font-weight:600;color:var(--text-2);transition:color .22s
+}
+.segmented button:active{transform:scale(.98)}
+.segmented button[aria-selected="true"],.segmented button[aria-pressed="true"]{color:var(--text)}
+.segmented.cities{width:100%}
+.segmented.cities[data-active="helsinki"] .seg-ind{transform:translateX(100%)}
+.segmented .ic{width:17px;height:17px}
+
+/* ============================================================
+   CLUSTER INFERIORE
+   ============================================================ */
+.ui-bottom{
+  position:absolute;left:0;right:0;bottom:0;z-index:20;
+  padding:0 12px calc(env(safe-area-inset-bottom,0px) + 12px);
+  display:grid;gap:10px;justify-items:center;pointer-events:none
+}
+.ui-bottom>*{pointer-events:auto;width:100%;max-width:560px}
+.legend{
+  display:flex;align-items:center;justify-content:center;gap:14px;padding:7px 14px;
+  border-radius:var(--r-pill);font-size:11px;font-weight:500;color:var(--text-2);width:auto
+}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.dot{width:8px;height:8px;border-radius:var(--r-pill);display:inline-block}
+.dot.hot{background:var(--hot)} .dot.cool{background:var(--cool)} .dot.school{background:var(--green)}
+
+.mode-card{padding:10px;border-radius:var(--r-md);display:grid;gap:9px;transition:box-shadow .25s}
+.mode-card[data-active="hot"]{box-shadow:var(--shadow-lift), 0 0 0 1px var(--hot-soft), var(--shadow-inner)}
+.mode-card[data-active="cool"]{box-shadow:var(--shadow-lift), 0 0 0 1px var(--cool-soft), var(--shadow-inner)}
+.segmented.modes[data-active="hot"] button#btnHot{color:var(--hot)}
+.segmented.modes[data-active="cool"] button#btnCool{color:var(--cool)}
+.segmented.modes[data-active="cool"] .seg-ind{transform:translateX(100%)}
+.hint{margin:0;text-align:center;font-size:12px;line-height:1.35;color:var(--text-2);padding:0 6px}
+.hint b{color:var(--text);font-weight:650}
+
+.toolbar{display:flex;align-items:center;gap:4px;padding:7px 9px;border-radius:var(--r-md)}
+.counter{display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:var(--r-sm);background:var(--fill);font-size:13px;font-weight:600}
+.counter .ic{width:16px;height:16px;color:var(--text-2)}
+.counter b{font-variant-numeric:tabular-nums;font-size:15px;font-weight:700}
+.counter small{font-size:11px;font-weight:500;color:var(--text-2)}
+.toolbar .spacer{flex:1}
+.tb{
+  display:flex;flex-direction:column;align-items:center;gap:3px;min-width:60px;
+  padding:6px 8px;border:0;border-radius:var(--r-xs);background:transparent;
+  font-size:10px;font-weight:600;color:var(--text-2);
+  transition:background .18s,color .18s,transform .18s var(--pop)
+}
+.tb .ic{width:23px;height:23px}
+.tb:hover{background:var(--fill);color:var(--text)}
+.tb:active{transform:scale(.94);background:var(--fill-2)}
+.tb.danger{color:var(--hot)}
+.tb.tint{color:var(--cool)}
+
+/* ============================================================
+   BOTTOM SHEET + drag-to-dismiss
+   ============================================================ */
+.sheet-wrap{
+  position:fixed;inset:0;z-index:40;display:grid;align-items:end;justify-items:center;
+  pointer-events:none;visibility:hidden;transition:visibility 0s linear .5s
+}
+.sheet-wrap.is-open{pointer-events:auto;visibility:visible;transition-delay:0s}
+.sheet-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.3);opacity:0;
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);transition:opacity .34s ease}
+.is-open .sheet-backdrop{opacity:1}
+.sheet{
+  position:relative;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:6px 18px calc(18px + env(safe-area-inset-bottom,0px));
+  border-radius:var(--r-lg) var(--r-lg) 0 0;
+  transform:translateY(102%);transition:transform .5s var(--spring);will-change:transform
+}
+.is-open .sheet{transform:none}
+.sheet.dragging{transition:none}
+.grabber{padding:8px 0 12px;display:flex;justify-content:center;touch-action:none;cursor:grab}
+.grabber:active{cursor:grabbing}
+.grabber span{width:38px;height:5px;border-radius:var(--r-pill);background:var(--text-3)}
+
+.sheet-head{display:flex;align-items:flex-start;gap:12px}
+.badge{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;flex:none;
+  background:var(--fill);color:var(--text);transition:background .25s,color .25s}
+.badge .ic{width:23px;height:23px}
+.sheet[data-type="hot"] .badge{background:var(--hot-soft);color:var(--hot)}
+.sheet[data-type="cool"] .badge{background:var(--cool-soft);color:var(--cool)}
+.sheet-kicker{margin:0 0 2px;font-size:12px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;color:var(--text-2)}
+.sheet-head h2{margin:0;font-size:19px;font-weight:700;letter-spacing:-.02em}
+.coords{margin:3px 0 0;font-size:11.5px;color:var(--text-3)}
+.icon-btn{width:32px;height:32px;border-radius:var(--r-pill);border:0;background:var(--fill);color:var(--text-2);
+  display:grid;place-items:center;flex:none;transition:background .2s,transform .18s var(--pop)}
+.icon-btn:hover{background:var(--fill-2);color:var(--text)}
+.icon-btn:active{transform:scale(.9)}
+.icon-btn .ic{width:16px;height:16px}
+
+.field{margin-top:18px}
+.label{display:block;font-size:13px;font-weight:600;margin:0 0 8px}
+.label .muted{font-weight:500;color:var(--text-2)}
+.stars{display:flex;gap:4px}
+.star{border:0;background:transparent;padding:2px;color:var(--text-3);transition:color .2s,transform .2s var(--pop)}
+.star .ic{width:32px;height:32px}
+.star.on{color:var(--gold)}
+.star:active{transform:scale(1.2)}
+/* valutazione obbligatoria: stato di errore + shake */
+.stars.error{animation:shake .42s cubic-bezier(.36,.07,.19,.97)}
+.stars.error .star{color:var(--hot)}
+@keyframes shake{
+  10%,90%{transform:translateX(-2px)} 20%,80%{transform:translateX(4px)}
+  30%,50%,70%{transform:translateX(-6px)} 40%,60%{transform:translateX(6px)}
+}
+#ratingText.error{color:var(--hot);font-weight:600}
+.btn.primary.is-locked{opacity:.45;box-shadow:none}
+.footnote{margin:6px 0 0;font-size:11.5px;color:var(--text-2)}
+.footnote.right{text-align:right}
+.footnote.center{text-align:center;margin-top:12px}
+#noteInput{
+  width:100%;min-height:78px;resize:none;padding:12px 14px;border-radius:var(--r-sm);
+  border:.5px solid var(--separator);background:var(--fill);color:var(--text);
+  font-size:15px;line-height:1.4;transition:box-shadow .2s,border-color .2s
+}
+#noteInput::placeholder{color:var(--text-3)}
+#noteInput:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--cool-soft),0 0 0 .5px var(--cool)}
+
+.sheet-actions{display:grid;grid-template-columns:1fr 1.25fr;gap:10px;margin-top:20px}
+.btn{min-height:50px;border:0;border-radius:var(--r-sm);font-size:16px;font-weight:650;letter-spacing:-.015em;
+  transition:transform .18s var(--pop),filter .2s,background .2s}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:var(--fill);color:var(--text)}
+.btn.ghost:hover{background:var(--fill-2)}
+.btn.primary{color:#fff;background:linear-gradient(180deg,var(--accent-1),var(--accent-2));box-shadow:0 10px 22px var(--accent-shadow)}
+.btn.primary:hover{filter:brightness(1.06)}
+.sheet[data-type="hot"]{--accent-1:#ff7a6e;--accent-2:#ff3b30;--accent-shadow:rgba(255,59,48,.34)}
+.sheet[data-type="cool"]{--accent-1:#4aa3ff;--accent-2:#007aff;--accent-shadow:rgba(0,122,255,.32)}
+@media (prefers-color-scheme: dark){
+  .sheet[data-type="hot"]{--accent-1:#ff6961;--accent-2:#ff453a}
+  .sheet[data-type="cool"]{--accent-1:#409cff;--accent-2:#0a84ff}
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+.toast{position:fixed;left:50%;z-index:60;top:calc(env(safe-area-inset-top,0px) + var(--top-cluster));
+  transform:translateX(-50%) translateY(-14px) scale(.96);opacity:0;pointer-events:none;
+  transition:opacity .26s ease,transform .34s var(--spring)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+.toast .cap{display:block;max-width:86vw;padding:10px 16px;border-radius:var(--r-pill);
+  background:rgba(28,28,30,.86);color:#fff;font-size:13px;font-weight:550;
+  -webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);
+  box-shadow:var(--shadow-lift);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (prefers-color-scheme: dark){.toast .cap{background:rgba(240,240,245,.92);color:#000}}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (min-width:640px){
+  :root{--top-cluster:126px}
+  .brand{font-size:15px}
+  .sheet{border-radius:var(--r-lg);margin-bottom:28px}
+  .tb{min-width:72px;font-size:11px}
+  .hint{font-size:12.5px}
+}
+@media (min-width:1024px){.ui-top,.ui-bottom{padding-left:20px;padding-right:20px}}
+
+:focus-visible{outline:2.5px solid var(--cool);outline-offset:3px;border-radius:10px}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+</style>
 </head>
-<body class="bg-white text-neutral-800">
-  <div id="app" class="flex flex-col overflow-hidden">
+<body>
 
-    <!-- ============ HEADER ============ -->
-    <header class="shrink-0 bg-[#155E4A] text-white shadow-lg z-20"
-            style="padding-top: env(safe-area-inset-top, 0px);">
-      <!-- riga 1: brand + lingua -->
-      <div class="flex items-center justify-between gap-2 px-3 pt-2 sm:px-5">
-        <div class="min-w-0">
-          <h1 class="shadow-title text-lg sm:text-2xl font-extrabold leading-tight">🔦 Shadow Hunters</h1>
-          <p data-i18n="tagline" class="text-[10px] sm:text-xs text-emerald-100/90 leading-tight">mappa il caldo · caccia l'ombra · cambia la città</p>
-        </div>
-        <!-- TENDINA LINGUA IT / EN / FI -->
-        <div class="flex shrink-0 items-center gap-1.5">
-          <span class="text-base" aria-hidden="true">🌐</span>
-          <select id="langSel" onchange="setLang(this.value)"
-                  class="rounded-lg bg-emerald-900/70 text-white text-xs sm:text-sm font-bold px-1.5 py-1.5 border border-emerald-700/50 focus:outline-none"
-                  aria-label="Language / Lingua / Kieli">
-            <option value="it">Italiano</option>
-            <option value="en">English</option>
-            <option value="fi">Suomi</option>
-          </select>
-        </div>
-      </div>
-      <!-- riga 2: città -->
-      <div class="grid grid-cols-2 gap-2 px-3 py-2 sm:px-5">
-        <button id="btnRome" onclick="goRome()"
-                class="btn-press rounded-xl px-2 py-2 text-xs sm:text-sm font-bold transition text-white bg-emerald-800/40 border border-emerald-700/40">📍 Roma</button>
-        <button id="btnHelsinki" onclick="goHelsinki()"
-                class="btn-press rounded-xl px-2 py-2 text-xs sm:text-sm font-bold transition text-white bg-emerald-800/40 border border-emerald-700/40">📍 Helsinki</button>
-      </div>
-    </header>
+<!-- ============ sprite icone ============ -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4.4" fill="currentColor"/>
+      <g class="ic-stroke" stroke-width="2">
+        <path d="M12 2.6v2.6M12 18.8v2.6M2.6 12h2.6M18.8 12h2.6M5.2 5.2l1.8 1.8M17 17l1.8 1.8M18.8 5.2 17 7M7 17l-1.8 1.8"/>
+      </g>
+    </symbol>
+    <symbol id="i-umbrella" viewBox="0 0 24 24">
+      <path d="M12 3.2A9 9 0 0 0 3 12h18a9 9 0 0 0-9-8.8Z" fill="currentColor"/>
+      <path d="M12 12v6.6a2.2 2.2 0 0 0 4.4 0" class="ic-stroke" stroke-width="2"/>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24">
+      <path d="M12 2.6c-3.9 0-7 3.1-7 7 0 5 7 11.8 7 11.8s7-6.8 7-11.8c0-3.9-3.1-7-7-7Zm0 9.6a2.6 2.6 0 1 1 0-5.2 2.6 2.6 0 0 1 0 5.2Z" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-share" viewBox="0 0 24 24">
+      <g class="ic-stroke">
+        <path d="M12 15V3.4M8.4 6.8 12 3.2l3.6 3.6"/>
+        <path d="M6.2 10.4H5.4A2.4 2.4 0 0 0 3 12.8v6A2.4 2.4 0 0 0 5.4 21.2h13.2A2.4 2.4 0 0 0 21 18.8v-6a2.4 2.4 0 0 0-2.4-2.4h-.8"/>
+      </g>
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24">
+      <g class="ic-stroke">
+        <rect x="8.6" y="8.6" width="11.4" height="11.4" rx="3"/>
+        <path d="M15.4 5.6A3 3 0 0 0 12.6 4H7A3 3 0 0 0 4 7v5.6a3 3 0 0 0 1.6 2.7"/>
+      </g>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24">
+      <g class="ic-stroke">
+        <path d="M4.6 6.8h14.8M9.6 6.8V5.2A1.6 1.6 0 0 1 11.2 3.6h1.6a1.6 1.6 0 0 1 1.6 1.6v1.6"/>
+        <path d="M6.6 6.8h10.8l-.9 12.1a1.9 1.9 0 0 1-1.9 1.7H9.4a1.9 1.9 0 0 1-1.9-1.7L6.6 6.8Z"/>
+      </g>
+    </symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24">
+      <g class="ic-stroke">
+        <circle cx="12" cy="12" r="8.6"/>
+        <path d="M3.4 12h17.2M12 3.4c2.3 2.4 3.5 5.4 3.5 8.6S14.3 18.2 12 20.6c-2.3-2.4-3.5-5.4-3.5-8.6S9.7 5.8 12 3.4Z"/>
+      </g>
+    </symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6.5 9.5 5.5 5.5 5.5-5.5" class="ic-stroke"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.4 6.4l11.2 11.2M17.6 6.4 6.4 17.6" class="ic-stroke" stroke-width="2.2"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24">
+      <path d="M12 2.9l2.9 5.9 6.5.95-4.7 4.6 1.1 6.45L12 17.75 6.2 20.8l1.1-6.45L2.6 9.75l6.5-.95L12 2.9Z" fill="currentColor"/>
+    </symbol>
+  </defs>
+</svg>
 
-    <!-- ============ MAPPA ============ -->
-    <main class="relative flex-1 min-h-0">
-      <div id="map"></div>
+<!-- ============ MAPPA ============ -->
+<div id="map"></div>
 
-      <!-- Legenda -->
-      <div class="pointer-events-none absolute top-2 left-2 z-[1000]">
-        <div class="rounded-xl bg-white/95 shadow-md border border-neutral-200 px-3 py-2 text-[11px] sm:text-xs space-y-1">
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#DF4F3B] inline-block"></span> <span data-i18n="legendHot">Isola di calore</span> 🔴</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#2E9BD6] inline-block"></span> <span data-i18n="legendCool">Zona d'ombra / fresco</span> 🔵</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#155E4A] inline-block"></span> <span data-i18n="legendSchool">Scuola partner</span></div>
-        </div>
-      </div>
+<!-- ============ UI SUPERIORE ============ -->
+<header class="ui-top">
+  <div class="top-row">
+    <div class="glass brand">
+      <span class="brand-mark" aria-hidden="true">🔦</span>
+      <span>Shadow Hunters</span>
+    </div>
 
-      <!-- Toast -->
-      <div id="toast" class="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-44 z-[1100] hidden">
-        <div id="toastText" class="rounded-full bg-neutral-900/90 text-white text-xs sm:text-sm px-4 py-2 shadow-lg whitespace-nowrap max-w-[90vw] overflow-hidden text-ellipsis"></div>
-      </div>
-
-      <!-- ============ BARRA CONTROLLI ============ -->
-      <div class="absolute bottom-0 inset-x-0 z-[1000] p-2 sm:p-3 pointer-events-none"
-           style="padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);">
-        <div class="pointer-events-auto mx-auto max-w-3xl rounded-2xl bg-white/95 backdrop-blur shadow-xl border border-neutral-200 px-2 sm:px-4 py-2 sm:py-3">
-          <div class="grid grid-cols-2 gap-2">
-            <button id="btnHot" onclick="toggleMode('hot')" aria-pressed="false"
-                    class="btn-press rounded-xl border-2 px-2 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold transition text-[#B23A29] border-[#DF4F3B] bg-[#DF4F3B]/10">
-              🔴 <span data-i18n="btnHot">Isola di calore</span>
-            </button>
-            <button id="btnCool" onclick="toggleMode('cool')" aria-pressed="false"
-                    class="btn-press rounded-xl border-2 px-2 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold transition text-[#166a9e] border-[#2E9BD6] bg-[#2E9BD6]/10">
-              🔵 <span data-i18n="btnCool">Zona d'ombra</span>
-            </button>
-          </div>
-          <p id="hint" class="text-center text-[11px] sm:text-xs text-neutral-500 mt-2 leading-snug px-1"></p>
-          <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <span class="inline-flex items-center gap-2 rounded-full bg-[#155E4A] text-white text-xs sm:text-sm font-bold px-3 py-2">
-              🗺️ <span data-i18n="counter">Punti mappati</span>: <span id="count">0</span>
-            </span>
-            <div class="flex flex-wrap gap-2">
-              <button id="btnExport" onclick="exportCSV()"
-                      class="btn-press rounded-full bg-[#F2A35C] hover:bg-[#e8933f] text-white text-xs sm:text-sm font-extrabold px-3 py-2 sm:px-4 shadow">
-                📥 <span data-i18n="exportBtn">Esporta CSV</span>
-              </button>
-              <button id="btnCopy" onclick="copyCSV()"
-                      class="btn-press rounded-full border border-neutral-300 bg-white text-neutral-600 text-xs sm:text-sm font-bold px-3 py-2">
-                📋 <span data-i18n="copyBtn">Copia</span>
-              </button>
-              <button onclick="clearAll()" data-i18n-aria="delAria"
-                      class="btn-press rounded-full border border-neutral-300 bg-white text-neutral-500 text-xs sm:text-sm font-bold px-3 py-2" aria-label="Svuota la mappa">🗑️</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ============ SCHEDA CONFERMA PUNTO ============ -->
-      <div id="sheetWrap" class="hidden absolute inset-0 z-[1200]">
-        <div id="sheetBackdrop" class="absolute inset-0 bg-black/40 pointer-events-auto" onclick="cancelPending()"></div>
-        <div class="absolute bottom-0 inset-x-0 flex justify-center pointer-events-none">
-          <div id="sheet" class="pointer-events-auto w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl p-4 sm:p-5 max-h-[82%] overflow-y-auto"
-               style="padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);"
-               role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p id="sheetType" class="text-sm font-extrabold text-neutral-500">🔴 Isola di calore</p>
-                <h2 id="sheetTitle" data-i18n="sheetTitleConfirm" class="text-base sm:text-lg font-extrabold text-neutral-900">Confermi questo punto?</h2>
-                <p id="pendingCoords" class="text-[11px] text-neutral-400 mt-0.5">—</p>
-              </div>
-              <button onclick="cancelPending()" data-i18n-aria="cancelAria" aria-label="Annulla"
-                      class="shrink-0 w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 font-bold text-lg">✕</button>
-            </div>
-
-            <div class="mt-4">
-              <p class="text-xs font-bold text-neutral-600 mb-1.5">
-                <span data-i18n="ratingPrompt">Quanto è vivibile questo posto?</span>
-                <span data-i18n="ratingOptional" class="text-neutral-400 font-medium">(facoltativa, da 1 a 5)</span>
-              </p>
-              <div class="flex items-center gap-1.5 flex-wrap" role="radiogroup">
-                <button type="button" class="star-btn" onclick="setRating(1)" aria-label="1" style="color:#d4d4d4">★</button>
-                <button type="button" class="star-btn" onclick="setRating(2)" aria-label="2" style="color:#d4d4d4">★</button>
-                <button type="button" class="star-btn" onclick="setRating(3)" aria-label="3" style="color:#d4d4d4">★</button>
-                <button type="button" class="star-btn" onclick="setRating(4)" aria-label="4" style="color:#d4d4d4">★</button>
-                <button type="button" class="star-btn" onclick="setRating(5)" aria-label="5" style="color:#d4d4d4">★</button>
-                <span id="ratingText" class="text-xs text-neutral-400 ml-1"></span>
-              </div>
-            </div>
-
-            <div class="mt-4">
-              <label for="noteInput" class="text-xs font-bold text-neutral-600">
-                <span data-i18n="noteLabel">Nota</span>
-                <span data-i18n="noteOptional" class="text-neutral-400 font-medium">(facoltativa)</span>
-              </label>
-              <textarea id="noteInput" rows="2" maxlength="280" data-i18n-ph="notePh"
-                        placeholder="es. sotto il noce, ombra fino alle 17"
-                        class="mt-1.5 w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#155E4A]/40 resize-none"></textarea>
-              <p class="text-right text-[10px] text-neutral-400"><span id="noteCount">0</span>/280</p>
-            </div>
-
-            <div class="mt-4 grid grid-cols-2 gap-2">
-              <button onclick="cancelPending()"
-                      class="btn-press rounded-full border-2 border-neutral-300 bg-white text-neutral-600 font-extrabold px-4 py-3 text-sm">
-                ✕ <span data-i18n="cancelBtn">Annulla</span>
-              </button>
-              <button onclick="confirmPending()"
-                      class="btn-press rounded-full bg-[#155E4A] text-white font-extrabold px-4 py-3 text-sm shadow-md">
-                ✓ <span data-i18n="confirmBtn">Conferma punto</span>
-              </button>
-            </div>
-            <p class="text-center text-[10px] text-neutral-400 mt-2.5">
-              <span data-i18n="sheetBottomNote">Il punto comparirà sulla mappa solo dopo la conferma</span>
-            </p>
-          </div>
-        </div>
-      </div>
-    </main>
+    <div class="glass lang-wrap">
+      <svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg>
+      <label class="vh" for="langSel">Lingua / Language / Kieli</label>
+      <select id="langSel" onchange="setLang(this.value)">
+        <option value="it">Italiano</option>
+        <option value="en">English</option>
+        <option value="fi">Suomi</option>
+      </select>
+      <svg class="ic chev" aria-hidden="true"><use href="#i-chevron"/></svg>
+    </div>
   </div>
 
-  <script>
-    /* =====================================================================
-       SHADOW HUNTERS — mappa phygital · IT / EN / FI
-       ===================================================================== */
+  <div class="glass segmented cities" id="citySeg" data-active="rome" role="tablist" aria-label="Città">
+    <span class="seg-ind" aria-hidden="true"></span>
+    <button id="btnRome" role="tab" aria-selected="true" onclick="goRome()" onpointerdown="tap()">📍 Roma</button>
+    <button id="btnHelsinki" role="tab" aria-selected="false" onclick="goHelsinki()" onpointerdown="tap()">📍 Helsinki</button>
+  </div>
+</header>
 
-    /* ---------------- TRADUZIONI ---------------- */
-    var I18N = {
-      it: {
-        docTitle: "Shadow Hunters · Mappa il caldo, caccia l'ombra",
-        tagline: "mappa il caldo · caccia l'ombra · cambia la città",
-        locRome: "Roma · Liceo Aristotele",
-        locHelsinki: "Helsinki · Etu-Töölö",
-        legendHot: "Isola di calore", legendCool: "Zona d'ombra / fresco", legendSchool: "Scuola partner",
-        typeHot: "Isola di calore", typeCool: "Zona d'ombra",
-        btnHot: "Isola di calore", btnCool: "Zona d'ombra",
-        hintDefault: "Scegli un tipo di punto, poi tocca la mappa dove vuoi segnarlo",
-        hintHot: "🔥 <b>Modalità caldo attiva</b> — tocca la mappa per segnare un'isola di calore",
-        hintCool: "🔵 <b>Modalità ombra attiva</b> — tocca la mappa per segnare una zona d'ombra o fresca",
-        counter: "Punti mappati",
-        exportBtn: "Esporta CSV", copyBtn: "Copia", delAria: "Svuota la mappa",
-        toastChooseFirst: "Scegli prima un tipo di punto: 🔴 caldo o 🔵 ombra",
-        toastCity: "Sei a {name}",
-        toastNoDataExport: "Nessun punto da esportare: mappa prima qualcosa!",
-        toastNoDataCopy: "Nessun dato da copiare",
-        toastShareAbort: "Condivisione annullata — usa 📋 Copia se preferisci",
-        toastShared: "CSV condiviso ✓",
-        toastDownloaded: "📥 Scaricato: {name}",
-        toastCopied: "Dati copiati negli appunti ✓ (incollali in un file .csv)",
-        toastClearEmpty: "La mappa è già vuota",
-        toastCleared: "Mappa svuotata",
-        toastSaved: "✓ Punto salvato: {type}",
-        toastRemoved: "Punto rimosso",
-        toastPreview: "👆 Punto in anteprima: compila la scheda e conferma",
-        toastFallbackCopy: "Copiato negli appunti — incolla in un file .csv",
-        confirmClear: "Eliminare tutti i {n} punti mappati?",
-        sheetTitleConfirm: "Confermi questo punto?",
-        sheetMoveHint: "(tocca di nuovo la mappa per spostare il punto)",
-        cancelAria: "Annulla",
-        ratingPrompt: "Quanto è vivibile questo posto?",
-        ratingOptional: "(facoltativa, da 1 a 5)",
-        ratingNone: "non valutato",
-        ratingFull: "{v}/5 — {w}",
-        rat1: "invivibile", rat2: "sgradevole", rat3: "accettabile", rat4: "piacevole", rat5: "perfetto!",
-        noteLabel: "Nota", noteOptional: "(facoltativa)",
-        notePh: "es. sotto il noce, ombra fino alle 17",
-        cancelBtn: "Annulla", confirmBtn: "Conferma punto",
-        sheetBottomNote: "Il punto comparirà sulla mappa solo dopo la conferma",
-        popupRemove: "Rimuovi", popupSchool: "Scuola partner del progetto",
-        shareTitle: "Shadow Hunters — dati mappati",
-        shareText: "{n} punti mappati ({city})"
-      },
-      en: {
-        docTitle: "Shadow Hunters · Map the heat, hunt the shade",
-        tagline: "map the heat · hunt the shade · change the city",
-        locRome: "Rome · Liceo Aristotele",
-        locHelsinki: "Helsinki · Etu-Töölö",
-        legendHot: "Heat island", legendCool: "Shade / cool spot", legendSchool: "Partner school",
-        typeHot: "Heat island", typeCool: "Shade spot",
-        btnHot: "Heat island", btnCool: "Shade spot",
-        hintDefault: "Pick a point type, then tap the map where you want to mark it",
-        hintHot: "🔥 <b>Heat mode on</b> — tap the map to mark a heat island",
-        hintCool: "🔵 <b>Shade mode on</b> — tap the map to mark a shade or cool spot",
-        counter: "Points mapped",
-        exportBtn: "Export CSV", copyBtn: "Copy", delAria: "Clear the map",
-        toastChooseFirst: "Pick a point type first: 🔴 heat or 🔵 shade",
-        toastCity: "Now viewing: {name}",
-        toastNoDataExport: "No points to export yet — map something first!",
-        toastNoDataCopy: "Nothing to copy yet",
-        toastShareAbort: "Sharing cancelled — use 📋 Copy if you prefer",
-        toastShared: "CSV shared ✓",
-        toastDownloaded: "📥 Downloaded: {name}",
-        toastCopied: "Data copied to clipboard ✓ (paste it into a .csv file)",
-        toastClearEmpty: "The map is already empty",
-        toastCleared: "Map cleared",
-        toastSaved: "✓ Point saved: {type}",
-        toastRemoved: "Point removed",
-        toastPreview: "👆 Point preview: fill in the form and confirm",
-        toastFallbackCopy: "Copied to clipboard — paste into a .csv file",
-        confirmClear: "Delete all {n} mapped points?",
-        sheetTitleConfirm: "Confirm this point?",
-        sheetMoveHint: "(tap the map again to move the point)",
-        cancelAria: "Cancel",
-        ratingPrompt: "How liveable is this place?",
-        ratingOptional: "(optional, 1 to 5)",
-        ratingNone: "not rated",
-        ratingFull: "{v}/5 — {w}",
-        rat1: "unbearable", rat2: "unpleasant", rat3: "acceptable", rat4: "pleasant", rat5: "perfect!",
-        noteLabel: "Note", noteOptional: "(optional)",
-        notePh: "e.g. under the walnut tree, shade until 5 pm",
-        cancelBtn: "Cancel", confirmBtn: "Confirm point",
-        sheetBottomNote: "The point will appear on the map only after confirmation",
-        popupRemove: "Remove", popupSchool: "Partner school of the project",
-        shareTitle: "Shadow Hunters — mapped data",
-        shareText: "{n} points mapped ({city})"
-      },
-      fi: {
-        docTitle: "Shadow Hunters · Kartoita kuumuus, etsi varjo",
-        tagline: "kartoita kuumuus · etsi varjo · muuta kaupunki",
-        locRome: "Rooma · Liceo Aristotele",
-        locHelsinki: "Helsinki · Etu-Töölö",
-        legendHot: "Lämpösaareke", legendCool: "Varjopaikka / viileä alue", legendSchool: "Kumppanikoulu",
-        typeHot: "Lämpösaareke", typeCool: "Varjopaikka",
-        btnHot: "Lämpösaareke", btnCool: "Varjopaikka",
-        hintDefault: "Valitse pistetyyppi ja napauta sitten karttaa kohtaan, jonka haluat merkitä",
-        hintHot: "🔥 <b>Kuumuus-tila aktiivinen</b> — napauta karttaa merkitäksesi lämpösaarekkeen",
-        hintCool: "🔵 <b>Varjo-tila aktiivinen</b> — napauta karttaa merkitäksesi varjopaikan tai viileän alueen",
-        counter: "Kartoitettuja pisteitä",
-        exportBtn: "Vie CSV", copyBtn: "Kopioi", delAria: "Tyhjennä kartta",
-        toastChooseFirst: "Valitse ensin pistetyyppi: 🔴 kuuma tai 🔵 varjo",
-        toastCity: "Nyt: {name}",
-        toastNoDataExport: "Ei vielä vietäviä pisteitä — merkitse ensin jotakin kartalle!",
-        toastNoDataCopy: "Ei kopioitavaa dataa",
-        toastShareAbort: "Jakaminen peruutettu — käytä tarvittaessa 📋 Kopioi",
-        toastShared: "CSV jaettu ✓",
-        toastDownloaded: "📥 Ladattu: {name}",
-        toastCopied: "Data kopioitu leikepöydälle ✓ (liitä se .csv-tiedostoon)",
-        toastClearEmpty: "Kartta on jo tyhjä",
-        toastCleared: "Kartta tyhjennetty",
-        toastSaved: "✓ Piste tallennettu: {type}",
-        toastRemoved: "Piste poistettu",
-        toastPreview: "👆 Piste esikatselussa: täytä lomake ja vahvista",
-        toastFallbackCopy: "Kopioitu leikepöydälle — liitä se .csv-tiedostoon",
-        confirmClear: "Poistetaanko kaikki {n} kartoitettua pistettä?",
-        sheetTitleConfirm: "Vahvistatko tämän pisteen?",
-        sheetMoveHint: "(napauta karttaa uudelleen siirtääksesi pistettä)",
-        cancelAria: "Peruuta",
-        ratingPrompt: "Kuinka viihtyisä paikka tämä on?",
-        ratingOptional: "(valinnainen, 1–5)",
-        ratingNone: "ei arvioitu",
-        ratingFull: "{v}/5 — {w}",
-        rat1: "sietämätön", rat2: "epämiellyttävä", rat3: "kohtalainen", rat4: "miellyttävä", rat5: "täydellinen!",
-        noteLabel: "Muistiinpano", noteOptional: "(valinnainen)",
-        notePh: "esim. pähkinäpuun alla, varjoa klo 17 asti",
-        cancelBtn: "Peruuta", confirmBtn: "Vahvista piste",
-        sheetBottomNote: "Piste tulee kartalle vasta vahvistuksen jälkeen",
-        popupRemove: "Poista", popupSchool: "Projektin kumppanikoulu",
-        shareTitle: "Shadow Hunters — kartoitettu aineisto",
-        shareText: "{n} kartoitettua pistettä ({city})"
-      }
-    };
+<!-- ============ UI INFERIORE ============ -->
+<div class="ui-bottom">
 
-    var lang = "it";
-    function T(key, params) {
-      var s = (I18N[lang] && I18N[lang][key]) || I18N.it[key] || key;
-      if (params) {
-        for (var k in params) {
-          s = s.split("{" + k + "}").join(params[k]);
-        }
-      }
-      return s;
-    }
+  <div class="glass legend">
+    <span><i class="dot hot"></i><span data-i18n="legendHot">Isola di calore</span></span>
+    <span><i class="dot cool"></i><span data-i18n="legendCool">Zona d'ombra</span></span>
+    <span><i class="dot school"></i><span data-i18n="legendSchool">Scuola</span></span>
+  </div>
 
-    /* ---------------- COSTANTI ---------------- */
-    var CITIES = {
-      rome:     { nameKey: "locRome",     lat: 41.8214, lng: 12.4811, zoom: 16 },
-      helsinki: { nameKey: "locHelsinki", lat: 60.1741, lng: 24.9221, zoom: 16 }
-    };
-    var COLORS = {
-      hot:  { fill: "#DF4F3B", emoji: "🔴", nameKey: "typeHot" },
-      cool: { fill: "#2E9BD6", emoji: "🔵", nameKey: "typeCool" }
-    };
+  <div class="glass mode-card" id="modeCard" data-active="">
+    <div class="segmented modes" id="modeSeg" data-active="" role="group" aria-label="Tipo di punto">
+      <span class="seg-ind" aria-hidden="true"></span>
+      <button id="btnHot" aria-pressed="false" onclick="toggleMode('hot')" onpointerdown="tap()">
+        <svg class="ic" aria-hidden="true"><use href="#i-sun"/></svg>
+        <span data-i18n="segHot">Caldo</span>
+      </button>
+      <button id="btnCool" aria-pressed="false" onclick="toggleMode('cool')" onpointerdown="tap()">
+        <svg class="ic" aria-hidden="true"><use href="#i-umbrella"/></svg>
+        <span data-i18n="segCool">Ombra</span>
+      </button>
+    </div>
+    <p class="hint" id="hint"></p>
+  </div>
 
-    var currentCity = "rome";
-    var mode = null;
-    var points = [];
-    var idCounter = 0;
-    var pending = null;
-    var previewMarker = null;
-    var rating = 0;
+  <div class="glass toolbar">
+    <div class="counter" role="status" aria-live="polite">
+      <svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>
+      <b id="count">0</b>
+      <small data-i18n="counter">punti</small>
+    </div>
+    <span class="spacer"></span>
+    <button class="tb tint" id="btnExport" onclick="exportCSV()" onpointerdown="tap()">
+      <svg class="ic" aria-hidden="true"><use href="#i-share"/></svg>
+      <span data-i18n="exportBtn">Esporta</span>
+    </button>
+    <button class="tb" id="btnCopy" onclick="copyCSV()" onpointerdown="tap()">
+      <svg class="ic" aria-hidden="true"><use href="#i-copy"/></svg>
+      <span data-i18n="copyBtn">Copia</span>
+    </button>
+    <button class="tb danger" id="btnClear" onclick="clearAll()" onpointerdown="tap()">
+      <svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg>
+      <span data-i18n="clearBtn">Svuota</span>
+    </button>
+  </div>
+</div>
 
-    /* ---------------- APPLICA LINGUA ---------------- */
-    function applyLang(l) {
-      lang = (I18N[l]) ? l : "it";
-      try { localStorage.setItem("shadowLang", lang); } catch (e) {}
-      document.getElementById("langSel").value = lang;
-      document.title = T("docTitle");
-      var nodes = document.querySelectorAll("[data-i18n]");
-      for (var i = 0; i < nodes.length; i++) nodes[i].textContent = T(nodes[i].getAttribute("data-i18n"));
-      var phs = document.querySelectorAll("[data-i18n-ph]");
-      for (var j = 0; j < phs.length; j++) phs[j].setAttribute("placeholder", T(phs[j].getAttribute("data-i18n-ph")));
-      var ars = document.querySelectorAll("[data-i18n-aria]");
-      for (var k2 = 0; k2 < ars.length; k2++) ars[k2].setAttribute("aria-label", T(ars[k2].getAttribute("data-i18n-aria")));
-      refreshModeButtons();
-      renderRatingText();
-      if (pending) updateSheetInfo();
-    }
-    function setLang(l) {
-      applyLang(l);
-      toast(T("tagline"), 1400);
-    }
-    window.setLang = setLang;
+<!-- ============ BOTTOM SHEET ============ -->
+<div class="sheet-wrap" id="sheetWrap">
+  <div class="sheet-backdrop" id="sheetBackdrop" onclick="cancelPending()"></div>
 
-    /* ---------------- MAPPA ---------------- */
-    var map = L.map("map", { zoomControl: false }).setView([CITIES.rome.lat, CITIES.rome.lng], CITIES.rome.zoom);
-    L.control.zoom({ position: "topright" }).addTo(map);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
-    map.attributionControl.setPosition("topright");
+  <section class="sheet glass-strong" id="sheet" data-type="hot"
+           role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="grabber" id="grabber" aria-hidden="true"><span></span></div>
 
-    var dataLayer = L.layerGroup().addTo(map);
+    <div class="sheet-head">
+      <div class="badge" id="sheetBadge" aria-hidden="true">
+        <svg class="ic"><use href="#i-sun"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <p class="sheet-kicker" id="sheetType">Isola di calore</p>
+        <h2 id="sheetTitle" data-i18n="sheetTitleConfirm">Confermi questo punto?</h2>
+        <p class="coords" id="pendingCoords">—</p>
+      </div>
+      <button class="icon-btn" onclick="cancelPending()" data-i18n-aria="cancelAria" aria-label="Annulla">
+        <svg class="ic" aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </div>
 
-    function cityLabel(key) { return T(CITIES[key].nameKey); }
+    <div class="field">
+      <p class="label">
+        <span data-i18n="ratingPrompt">Quanto è vivibile questo posto?</span>
+        <span class="muted" data-i18n="ratingRequired">(obbligatoria, da 1 a 5)</span>
+      </p>
+      <div class="stars" id="stars" role="radiogroup" aria-required="true" aria-label="Valutazione">
+        <button type="button" class="star" onclick="setRating(1)" onpointerdown="tap()" aria-label="1"><svg class="ic"><use href="#i-star"/></svg></button>
+        <button type="button" class="star" onclick="setRating(2)" onpointerdown="tap()" aria-label="2"><svg class="ic"><use href="#i-star"/></svg></button>
+        <button type="button" class="star" onclick="setRating(3)" onpointerdown="tap()" aria-label="3"><svg class="ic"><use href="#i-star"/></svg></button>
+        <button type="button" class="star" onclick="setRating(4)" onpointerdown="tap()" aria-label="4"><svg class="ic"><use href="#i-star"/></svg></button>
+        <button type="button" class="star" onclick="setRating(5)" onpointerdown="tap()" aria-label="5"><svg class="ic"><use href="#i-star"/></svg></button>
+      </div>
+      <p class="footnote" id="ratingText"></p>
+    </div>
 
-    L.circleMarker([CITIES.rome.lat, CITIES.rome.lng], { radius: 7, color: "#fff", weight: 2, fillColor: "#155E4A", fillOpacity: 0.95 })
-      .addTo(map).bindPopup("<b>" + cityLabel("rome") + "</b><br/>" + T("popupSchool"));
-    L.circleMarker([CITIES.helsinki.lat, CITIES.helsinki.lng], { radius: 7, color: "#fff", weight: 2, fillColor: "#155E4A", fillOpacity: 0.95 })
-      .addTo(map).bindPopup("<b>" + cityLabel("helsinki") + "</b><br/>" + T("popupSchool"));
+    <div class="field">
+      <label class="label" for="noteInput">
+        <span data-i18n="noteLabel">Nota</span>
+        <span class="muted" data-i18n="noteOptional">(facoltativa)</span>
+      </label>
+      <textarea id="noteInput" maxlength="280" rows="3" data-i18n-ph="notePh"
+                placeholder="es. sotto il noce, ombra fino alle 17"></textarea>
+      <p class="footnote right"><span id="noteCount">0</span>/280</p>
+    </div>
 
-    function setCityActive() {
-      var active = "bg-white/90 text-emerald-900 border-white/60";
-      var idle = "text-white bg-emerald-800/40 border-emerald-700/40";
-      var base = "btn-press rounded-xl px-2 py-2 text-xs sm:text-sm font-bold transition border ";
-      document.getElementById("btnRome").className = base + (currentCity === "rome" ? active : idle);
-      document.getElementById("btnHelsinki").className = base + (currentCity === "helsinki" ? active : idle);
-    }
-    function goCity(key) {
-      currentCity = key;
-      map.flyTo([CITIES[key].lat, CITIES[key].lng], CITIES[key].zoom, { duration: 1.2 });
-      setCityActive();
-      toast(T("toastCity", { name: cityLabel(key) }));
-    }
-    window.goRome = function () { goCity("rome"); };
-    window.goHelsinki = function () { goCity("helsinki"); };
-    setCityActive();
+    <div class="sheet-actions">
+      <button class="btn ghost" onclick="cancelPending()" onpointerdown="tap()">
+        <span data-i18n="cancelBtn">Annulla</span>
+      </button>
+      <button class="btn primary is-locked" id="confirmBtn" onclick="confirmPending()" onpointerdown="tap()">
+        <span data-i18n="confirmBtn">Salva punto</span>
+      </button>
+    </div>
+    <p class="footnote center" data-i18n="sheetBottomNote">Il punto comparirà sulla mappa solo dopo la conferma</p>
+  </section>
+</div>
 
-    /* ---------------- MODALITÀ ---------------- */
-    function typeName(t) { return COLORS[t].emoji + " " + T(COLORS[t].nameKey); }
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span class="cap" id="toastText"></span>
+</div>
 
-    function refreshModeButtons() {
-      var hot = document.getElementById("btnHot");
-      var cool = document.getElementById("btnCool");
-      var base = "btn-press rounded-xl border-2 px-2 py-3 sm:py-3.5 text-xs sm:text-sm font-extrabold transition ";
-      var on = "text-white shadow-md scale-[1.02]";
-      if (mode === "hot") {
-        hot.className = base + "bg-[#DF4F3B] border-[#DF4F3B] " + on;
-        cool.className = base + "text-[#166a9e] border-[#2E9BD6] bg-[#2E9BD6]/10";
-      } else if (mode === "cool") {
-        cool.className = base + "bg-[#2E9BD6] border-[#2E9BD6] " + on;
-        hot.className = base + "text-[#B23A29] border-[#DF4F3B] bg-[#DF4F3B]/10";
-      } else {
-        hot.className = base + "text-[#B23A29] border-[#DF4F3B] bg-[#DF4F3B]/10";
-        cool.className = base + "text-[#166a9e] border-[#2E9BD6] bg-[#2E9BD6]/10";
-      }
-      hot.setAttribute("aria-pressed", mode === "hot" ? "true" : "false");
-      cool.setAttribute("aria-pressed", mode === "cool" ? "true" : "false");
-      var hint = document.getElementById("hint");
-      if (mode === "hot") hint.innerHTML = T("hintHot");
-      else if (mode === "cool") hint.innerHTML = T("hintCool");
-      else hint.textContent = T("hintDefault");
-    }
+<script>
+/* =====================================================================
+   SHADOW HUNTERS — logica (mappa Leaflet, i18n IT/EN/FI, export CSV)
+   ===================================================================== */
 
-    window.toggleMode = function (m) {
-      mode = (mode === m) ? null : m;
-      refreshModeButtons();
-      if (!mode && pending) cancelPending();
-    };
+/* ---------------- TRADUZIONI ---------------- */
+var I18N = {
+  it: {
+    docTitle: "Shadow Hunters · Mappa il caldo, caccia l'ombra",
+    locRome: "Roma · Liceo Aristotele", locHelsinki: "Helsinki · Etu-Töölö",
+    legendHot: "Isola di calore", legendCool: "Zona d'ombra", legendSchool: "Scuola",
+    typeHot: "Isola di calore", typeCool: "Zona d'ombra",
+    segHot: "Caldo", segCool: "Ombra",
+    hintDefault: "Scegli un tipo di punto, poi tocca la mappa dove vuoi segnarlo",
+    hintHot: "🔥 <b>Zona calda attiva</b> — tocca la mappa per segnalarla",
+    hintCool: "🔵 <b>Zona d'ombra attiva</b> — tocca la mappa per segnalarla",
+    counter: "punti", exportBtn: "Esporta", copyBtn: "Copia", clearBtn: "Svuota",
+    toastChooseFirst: "Scegli prima Caldo o Ombra",
+    toastCity: "Sei a {name}",
+    toastNoDataExport: "Nessun punto da esportare: mappa prima qualcosa!",
+    toastNoDataCopy: "Nessun dato da copiare",
+    toastShareAbort: "Condivisione annullata — usa Copia",
+    toastShared: "CSV condiviso ✓",
+    toastDownloaded: "📥 Scaricato: {name}",
+    toastCopied: "Dati copiati ✓ incollali in un file .csv",
+    toastClearEmpty: "La mappa è già vuota",
+    toastCleared: "Mappa svuotata",
+    toastSaved: "✓ Punto salvato: {type}",
+    toastRemoved: "Punto rimosso",
+    toastPreview: "👆 Compila la scheda e conferma",
+    toastFallbackCopy: "Copiato negli appunti — incolla in un file .csv",
+    toastLang: "Lingua: Italiano",
+    toastTileFallback: "Mappa: stile alternativo",
+    toastMapFailed: "Mappa non disponibile: controlla la connessione",
+    confirmClear: "Eliminare tutti i {n} punti mappati?",
+    sheetTitleConfirm: "Confermi questo punto?",
+    sheetMoveHint: "tocca di nuovo la mappa per spostarlo",
+    cancelAria: "Annulla",
+    ratingPrompt: "Quanto è vivibile questo posto?",
+    ratingRequired: "(obbligatoria, da 1 a 5)",
+    ratingPick: "Tocca le stelle: da 1 a 5",
+    toastRatingRequired: "Valutazione obbligatoria: scegli da 1 a 5 stelle",
+    ratingNone: "non valutato",
+    ratingFull: "{v}/5 — {w}",
+    rat1: "invivibile", rat2: "sgradevole", rat3: "accettabile", rat4: "piacevole", rat5: "perfetto!",
+    noteLabel: "Nota", noteOptional: "(facoltativa)",
+    notePh: "es. sotto il noce, ombra fino alle 17",
+    cancelBtn: "Annulla", confirmBtn: "Salva punto",
+    sheetBottomNote: "Il punto comparirà sulla mappa solo dopo la conferma",
+    popupRemove: "Rimuovi", popupSchool: "Scuola partner del progetto",
+    shareTitle: "Shadow Hunters — dati mappati",
+    shareText: "{n} punti mappati ({city})"
+  },
+  en: {
+    docTitle: "Shadow Hunters · Map the heat, hunt the shade",
+    locRome: "Rome · Liceo Aristotele", locHelsinki: "Helsinki · Etu-Töölö",
+    legendHot: "Heat island", legendCool: "Shade spot", legendSchool: "School",
+    typeHot: "Heat island", typeCool: "Shade spot",
+    segHot: "Heat", segCool: "Shade",
+    hintDefault: "Pick a point type, then tap the map where you want to mark it",
+    hintHot: "🔥 <b>Heat mode on</b> — tap the map to report it",
+    hintCool: "🔵 <b>Shade mode on</b> — tap the map to report it",
+    counter: "points", exportBtn: "Export", copyBtn: "Copy", clearBtn: "Clear",
+    toastChooseFirst: "Pick Heat or Shade first",
+    toastCity: "Now viewing: {name}",
+    toastNoDataExport: "No points to export yet — map something first!",
+    toastNoDataCopy: "Nothing to copy yet",
+    toastShareAbort: "Sharing cancelled — use Copy",
+    toastShared: "CSV shared ✓",
+    toastDownloaded: "📥 Downloaded: {name}",
+    toastCopied: "Data copied ✓ paste it into a .csv file",
+    toastClearEmpty: "The map is already empty",
+    toastCleared: "Map cleared",
+    toastSaved: "✓ Point saved: {type}",
+    toastRemoved: "Point removed",
+    toastPreview: "👆 Fill in the form and confirm",
+    toastFallbackCopy: "Copied to clipboard — paste into a .csv file",
+    toastLang: "Language: English",
+    toastTileFallback: "Map: alternative provider",
+    toastMapFailed: "Map unavailable: check your connection",
+    confirmClear: "Delete all {n} mapped points?",
+    sheetTitleConfirm: "Confirm this point?",
+    sheetMoveHint: "tap the map again to move it",
+    cancelAria: "Cancel",
+    ratingPrompt: "How liveable is this place?",
+    ratingRequired: "(required, 1 to 5)",
+    ratingPick: "Tap the stars: 1 to 5",
+    toastRatingRequired: "Rating required: choose 1 to 5 stars",
+    ratingNone: "not rated",
+    ratingFull: "{v}/5 — {w}",
+    rat1: "unbearable", rat2: "unpleasant", rat3: "acceptable", rat4: "pleasant", rat5: "perfect!",
+    noteLabel: "Note", noteOptional: "(optional)",
+    notePh: "e.g. under the walnut tree, shade until 5 pm",
+    cancelBtn: "Cancel", confirmBtn: "Save point",
+    sheetBottomNote: "The point will appear on the map only after confirmation",
+    popupRemove: "Remove", popupSchool: "Partner school of the project",
+    shareTitle: "Shadow Hunters — mapped data",
+    shareText: "{n} points mapped ({city})"
+  },
+  fi: {
+    docTitle: "Shadow Hunters · Kartoita kuumuus, etsi varjo",
+    locRome: "Rooma · Liceo Aristotele", locHelsinki: "Helsinki · Etu-Töölö",
+    legendHot: "Lämpösaareke", legendCool: "Varjopaikka", legendSchool: "Koulu",
+    typeHot: "Lämpösaareke", typeCool: "Varjopaikka",
+    segHot: "Kuuma", segCool: "Varjo",
+    hintDefault: "Valitse pistetyyppi ja napauta karttaa kohtaan, jonka haluat merkitä",
+    hintHot: "🔥 <b>Kuumuus-tila päällä</b> — napauta karttaa ja merkitse",
+    hintCool: "🔵 <b>Varjo-tila päällä</b> — napauta karttaa ja merkitse",
+    counter: "pistettä", exportBtn: "Vie", copyBtn: "Kopioi", clearBtn: "Tyhjennä",
+    toastChooseFirst: "Valitse ensin Kuuma tai Varjo",
+    toastCity: "Nyt: {name}",
+    toastNoDataExport: "Ei vielä vietäviä pisteitä — merkitse ensin jotakin!",
+    toastNoDataCopy: "Ei kopioitavaa dataa",
+    toastShareAbort: "Jakaminen peruutettu — käytä Kopioi",
+    toastShared: "CSV jaettu ✓",
+    toastDownloaded: "📥 Ladattu: {name}",
+    toastCopied: "Data kopioitu ✓ liitä se .csv-tiedostoon",
+    toastClearEmpty: "Kartta on jo tyhjä",
+    toastCleared: "Kartta tyhjennetty",
+    toastSaved: "✓ Piste tallennettu: {type}",
+    toastRemoved: "Piste poistettu",
+    toastPreview: "👆 Täytä lomake ja vahvista",
+    toastFallbackCopy: "Kopioitu leikepöydälle — liitä se .csv-tiedostoon",
+    toastLang: "Kieli: Suomi",
+    toastTileFallback: "Kartta: vaihtoehtoinen lähde",
+    toastMapFailed: "Kartta ei käytettävissä: tarkista yhteys",
+    confirmClear: "Poistetaanko kaikki {n} kartoitettua pistettä?",
+    sheetTitleConfirm: "Vahvistatko tämän pisteen?",
+    sheetMoveHint: "napauta karttaa uudelleen siirtääksesi pistettä",
+    cancelAria: "Peruuta",
+    ratingPrompt: "Kuinka viihtyisä paikka tämä on?",
+    ratingRequired: "(pakollinen, 1–5)",
+    ratingPick: "Napauta tähtiä: 1–5",
+    toastRatingRequired: "Arviointi vaaditaan: valitse 1–5 tähteä",
+    ratingNone: "ei arvioitu",
+    ratingFull: "{v}/5 — {w}",
+    rat1: "sietämätön", rat2: "epämiellyttävä", rat3: "kohtalainen", rat4: "miellyttävä", rat5: "täydellinen!",
+    noteLabel: "Muistiinpano", noteOptional: "(valinnainen)",
+    notePh: "esim. pähkinäpuun alla, varjoa klo 17 asti",
+    cancelBtn: "Peruuta", confirmBtn: "Tallenna piste",
+    sheetBottomNote: "Piste tulee kartalle vasta vahvistuksen jälkeen",
+    popupRemove: "Poista", popupSchool: "Projektin kumppanikoulu",
+    shareTitle: "Shadow Hunters — kartoitettu aineisto",
+    shareText: "{n} kartoitettua pistettä ({city})"
+  }
+};
 
-    /* ---------------- CLICK MAPPA -> ANTEPRIMA ---------------- */
-    map.on("click", function (e) {
-      if (!mode) {
-        toast(T("toastChooseFirst"), 2200);
-        return;
-      }
-      setPending(e.latlng.lat, e.latlng.lng);
-    });
+var lang = "it";
+function T(key, params) {
+  var s = (I18N[lang] && I18N[lang][key]) || I18N.it[key] || key;
+  if (params) for (var k in params) s = s.split("{" + k + "}").join(params[k]);
+  return s;
+}
 
-    function setPending(lat, lng) {
-      pending = { lat: lat, lng: lng };
-      if (previewMarker) map.removeLayer(previewMarker);
-      previewMarker = L.circleMarker([lat, lng], {
-        radius: 14, color: "#ffffff", weight: 3,
-        fillColor: COLORS[mode].fill, fillOpacity: 0.45
-      }).addTo(map);
-      updateSheetInfo();
-      document.getElementById("sheetWrap").classList.remove("hidden");
-      toast(T("toastPreview"), 2400);
-    }
+/* ---------------- COSTANTI ---------------- */
+var CITIES = {
+  rome:     { nameKey: "locRome",     lat: 41.8214, lng: 12.4811, zoom: 16 },
+  helsinki: { nameKey: "locHelsinki", lat: 60.1741, lng: 24.9221, zoom: 16 }
+};
+var COLORS = {
+  hot:  { fill: "#FF3B30", emoji: "🔴", nameKey: "typeHot",  icon: "i-sun" },
+  cool: { fill: "#007AFF", emoji: "🔵", nameKey: "typeCool", icon: "i-umbrella" }
+};
 
-    function updateSheetInfo() {
-      document.getElementById("sheetType").innerHTML = typeName(mode);
-      document.getElementById("pendingCoords").textContent =
-        "Lat " + pending.lat.toFixed(5) + " · Lng " + pending.lng.toFixed(5) + "  " + T("sheetMoveHint");
-    }
+var currentCity = "rome";
+var mode = null;
+var points = [];
+var idCounter = 0;
+var pending = null;
+var previewMarker = null;
+var rating = 0;
 
-    /* ---------------- CONFERMA / ANNULLA ---------------- */
-    window.confirmPending = function () {
-      if (!pending) return;
-      var note = document.getElementById("noteInput").value.trim();
-      idCounter += 1;
-      var rec = {
-        id: idCounter, type: mode,
-        lat: pending.lat, lng: pending.lng,
-        ts: new Date(), note: note, rating: rating
-      };
-      points.push(rec);
-      var marker = L.circleMarker([rec.lat, rec.lng], {
-        radius: 11, color: "#ffffff", weight: 2.5,
-        fillColor: COLORS[rec.type].fill, fillOpacity: 0.92
-      });
-      marker.bindPopup(popupHtml(rec));
-      marker.addTo(dataLayer);
-      rec.marker = marker;
-      if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; }
-      pending = null;
-      closeSheet();
+/* ---------------- HAPTIC + TOAST ---------------- */
+function tap() { if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} } }
+
+var toastTimer = null;
+function toast(msg, ms) {
+  var el = document.getElementById("toast");
+  document.getElementById("toastText").textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.remove("show"); }, ms || 1900);
+}
+
+/* ---------------- I18N ---------------- */
+function applyLang(l) {
+  lang = I18N[l] ? l : "it";
+  try { localStorage.setItem("shadowLang", lang); } catch (e) {}
+  document.getElementById("langSel").value = lang;
+  document.title = T("docTitle");
+  var nodes = document.querySelectorAll("[data-i18n]");
+  for (var i = 0; i < nodes.length; i++) nodes[i].textContent = T(nodes[i].getAttribute("data-i18n"));
+  var phs = document.querySelectorAll("[data-i18n-ph]");
+  for (var j = 0; j < phs.length; j++) phs[j].setAttribute("placeholder", T(phs[j].getAttribute("data-i18n-ph")));
+  var ars = document.querySelectorAll("[data-i18n-aria]");
+  for (var k = 0; k < ars.length; k++) ars[k].setAttribute("aria-label", T(ars[k].getAttribute("data-i18n-aria")));
+  refreshModeUI();
+  renderRatingText();
+  updateCTA();
+  if (pending) updateSheetInfo();
+}
+function setLang(l) { applyLang(l); toast(T("toastLang"), 1300); }
+
+/* ---------------- MAPPA + BASEMAP ----------------
+   Provider KEYLESS. Nota: CARTO serve ora tile con watermark "API KEY REQUIRED",
+   quindi si usa OpenStreetMap con fallback automatico su altri mirror. */
+var map = L.map("map", { zoomControl: false }).setView([CITIES.rome.lat, CITIES.rome.lng], CITIES.rome.zoom);
+L.control.zoom({ position: "topright" }).addTo(map);
+map.attributionControl.setPosition("topright");
+
+var ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+var TILE_PROVIDERS = [
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
+  "https://tile.openstreetmap.de/{z}/{x}/{y}.png"
+];
+var providerIndex = 0, tiles = null, tileErrors = 0, tilesLoaded = 0, watchdog = null;
+
+function nextProvider() {
+  if (providerIndex < TILE_PROVIDERS.length - 1) {
+    providerIndex++;
+    tileErrors = 0;
+    addTiles(providerIndex);
+    toast(T("toastTileFallback"), 1800);
+    return true;
+  }
+  document.body.classList.add("map-failed");
+  toast(T("toastMapFailed"), 3200);
+  return false;
+}
+
+function addTiles(i) {
+  if (tiles) map.removeLayer(tiles);
+  tilesLoaded = 0;
+  tiles = L.tileLayer(TILE_PROVIDERS[i], { maxZoom: 19, attribution: ATTR });
+  tiles.on("tileload", function () {
+    tilesLoaded++;
+    if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+  });
+  tiles.on("tileerror", function () {
+    tileErrors++;
+    if (tileErrors >= 4) nextProvider();     // 4 errori → provider successivo
+  });
+  tiles.addTo(map);
+  // watchdog: se dopo 6s non è arrivata nessuna tile, prova il provider successivo
+  if (watchdog) clearTimeout(watchdog);
+  watchdog = setTimeout(function () {
+    watchdog = null;
+    if (tilesLoaded === 0) nextProvider();
+  }, 6000);
+}
+addTiles(0);
+
+// iOS/Safari: la mappa a volte viene misurata prima che il layout sia pronto
+function fixMapSize() { try { map.invalidateSize(); } catch (e) {} }
+setTimeout(fixMapSize, 250);
+setTimeout(fixMapSize, 900);
+window.addEventListener("resize", fixMapSize);
+window.addEventListener("orientationchange", function () { setTimeout(fixMapSize, 350); });
+document.addEventListener("visibilitychange", function () { if (!document.hidden) fixMapSize(); });
+
+var dataLayer = L.layerGroup().addTo(map);
+function cityLabel(key) { return T(CITIES[key].nameKey); }
+
+L.circleMarker([CITIES.rome.lat, CITIES.rome.lng], { radius: 7, color: "#fff", weight: 2.5, fillColor: "#34C759", fillOpacity: 1 })
+  .addTo(map).bindPopup("<b>" + cityLabel("rome") + "</b><br/>" + T("popupSchool"));
+L.circleMarker([CITIES.helsinki.lat, CITIES.helsinki.lng], { radius: 7, color: "#fff", weight: 2.5, fillColor: "#34C759", fillOpacity: 1 })
+  .addTo(map).bindPopup("<b>" + cityLabel("helsinki") + "</b><br/>" + T("popupSchool"));
+
+/* ---------------- CITTÀ ---------------- */
+function goCity(key) {
+  currentCity = key;
+  document.getElementById("citySeg").setAttribute("data-active", key);
+  document.getElementById("btnRome").setAttribute("aria-selected", key === "rome" ? "true" : "false");
+  document.getElementById("btnHelsinki").setAttribute("aria-selected", key === "helsinki" ? "true" : "false");
+  map.flyTo([CITIES[key].lat, CITIES[key].lng], CITIES[key].zoom, { duration: 1.15 });
+  toast(T("toastCity", { name: cityLabel(key) }));
+}
+function goRome() { goCity("rome"); }
+function goHelsinki() { goCity("helsinki"); }
+
+/* ---------------- MODALITÀ ---------------- */
+function typeName(t) { return T(COLORS[t].nameKey); }
+
+function refreshModeUI() {
+  var active = mode || "";
+  document.getElementById("modeSeg").setAttribute("data-active", active);
+  document.getElementById("modeCard").setAttribute("data-active", active);
+  document.getElementById("btnHot").setAttribute("aria-pressed", mode === "hot" ? "true" : "false");
+  document.getElementById("btnCool").setAttribute("aria-pressed", mode === "cool" ? "true" : "false");
+  document.body.classList.toggle("armed", !!mode);
+  var hint = document.getElementById("hint");
+  if (mode === "hot") hint.innerHTML = T("hintHot");
+  else if (mode === "cool") hint.innerHTML = T("hintCool");
+  else hint.textContent = T("hintDefault");
+}
+
+function toggleMode(m) {
+  mode = (mode === m) ? null : m;
+  refreshModeUI();
+  if (!mode && pending) cancelPending();
+}
+
+/* ---------------- SELEZIONE MAPPA ---------------- */
+map.on("click", function (e) {
+  if (!mode) { toast(T("toastChooseFirst"), 2000); return; }
+  setPending(e.latlng.lat, e.latlng.lng);
+});
+
+function setPending(lat, lng) {
+  // scheda chiusa = nuovo punto → azzera stelle e nota (non quando si sposta il punto)
+  var fresh = !document.getElementById("sheetWrap").classList.contains("is-open");
+  if (fresh) resetForNewPoint();
+  pending = { lat: lat, lng: lng };
+  if (previewMarker) map.removeLayer(previewMarker);
+  previewMarker = L.circleMarker([lat, lng], {
+    radius: 15, color: "#fff", weight: 3,
+    fillColor: COLORS[mode].fill, fillOpacity: 0.5
+  }).addTo(map);
+  updateSheetInfo();
+  openSheet();
+  toast(T("toastPreview"), 2200);
+}
+
+function updateSheetInfo() {
+  document.getElementById("sheet").setAttribute("data-type", mode);
+  document.getElementById("sheetBadge").innerHTML =
+    '<svg class="ic"><use href="#' + COLORS[mode].icon + '"/></svg>';
+  document.getElementById("sheetType").textContent = typeName(mode);
+  document.getElementById("pendingCoords").textContent =
+    "Lat " + pending.lat.toFixed(5) + " · Lng " + pending.lng.toFixed(5) + " · " + T("sheetMoveHint");
+}
+
+function openSheet() { document.getElementById("sheetWrap").classList.add("is-open"); }
+function closeSheet() { document.getElementById("sheetWrap").classList.remove("is-open"); }
+
+/* ---------------- CONFERMA / ANNULLA ---------------- */
+function confirmPending() {
+  if (!pending) return;
+  if (rating === 0) { showRatingError(); return; }   // ⭐ valutazione OBBLIGATORIA
+  var note = document.getElementById("noteInput").value.trim();
+  idCounter += 1;
+  var rec = { id: idCounter, type: mode, lat: pending.lat, lng: pending.lng, ts: new Date(), note: note, rating: rating };
+  points.push(rec);
+
+  var marker = L.circleMarker([rec.lat, rec.lng], {
+    radius: 11, color: "#fff", weight: 2.5, fillColor: COLORS[rec.type].fill, fillOpacity: 1
+  });
+  marker.bindPopup(popupHtml(rec));
+  marker.addTo(dataLayer);
+  rec.marker = marker;
+
+  if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; }
+  pending = null;
+  closeSheet();
+  updateCount();
+  toast(T("toastSaved", { type: typeName(rec.type) }));
+}
+
+function cancelPending() {
+  if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; }
+  pending = null;
+  closeSheet();
+}
+
+function popupHtml(rec) {
+  var html = "<div style='min-width:160px'>" +
+    "<b>" + COLORS[rec.type].emoji + " " + typeName(rec.type) + "</b><br/>" +
+    "<span style='color:var(--text-2);font-size:11px'>Lat " + rec.lat.toFixed(5) + " · Lng " + rec.lng.toFixed(5) +
+    "<br/>" + fmtTS(rec.ts) + "</span>";
+  if (rec.rating > 0) {
+    html += "<br/><span style='color:#FFB800;letter-spacing:1px'>" + stars(rec.rating) +
+            "</span> <span style='color:var(--text-2);font-size:11px'>" + rec.rating + "/5</span>";
+  }
+  if (rec.note) html += "<br/><span style='font-size:12px'>" + esc(rec.note) + "</span>";
+  html += "<br/><button onclick='removePoint(" + rec.id + ")' style='margin-top:8px;cursor:pointer;" +
+          "background:rgba(255,59,48,.12);color:#FF3B30;border:0;border-radius:999px;padding:5px 13px;" +
+          "font-size:12px;font-weight:600'>" + T("popupRemove") + "</button></div>";
+  return html;
+}
+
+function removePoint(id) {
+  for (var i = 0; i < points.length; i++) {
+    if (points[i].id === id) {
+      dataLayer.removeLayer(points[i].marker);
+      points.splice(i, 1);
       updateCount();
-      toast(T("toastSaved", { type: typeName(rec.type) }));
-    };
-
-    window.cancelPending = function () {
-      if (previewMarker) { map.removeLayer(previewMarker); previewMarker = null; }
-      pending = null;
-      closeSheet();
-    };
-    function closeSheet() { document.getElementById("sheetWrap").classList.add("hidden"); }
-
-    function popupHtml(rec) {
-      var html = "<div style='min-width:170px;max-width:240px'>" +
-        "<b>" + typeName(rec.type) + "</b><br/>" +
-        "<span style='color:#666;font-size:11px'>Lat " + rec.lat.toFixed(5) + " · Lng " + rec.lng.toFixed(5) + "<br/>" + fmtTS(rec.ts) + "</span>";
-      if (rec.rating > 0) {
-        html += "<br/><span style='color:#E89A3C;letter-spacing:1px'>" + stars(rec.rating) +
-                "</span> <span style='color:#999;font-size:11px'>" + rec.rating + "/5</span>";
-      }
-      if (rec.note) {
-        html += "<br/><span style='font-size:11px;color:#333'>📝 " + esc(rec.note) + "</span>";
-      }
-      html += "<br/><button onclick='removePoint(" + rec.id + ")' style='margin-top:7px;cursor:pointer;" +
-        "background:#DF4F3B;color:#fff;border:0;border-radius:999px;padding:4px 12px;font-size:11px'>🗑️ " + T("popupRemove") + "</button></div>";
-      return html;
+      toast(T("toastRemoved"));
+      return;
     }
+  }
+}
 
-    window.removePoint = function (id) {
-      for (var i = 0; i < points.length; i++) {
-        if (points[i].id === id) {
-          dataLayer.removeLayer(points[i].marker);
-          points.splice(i, 1);
-          updateCount();
-          toast(T("toastRemoved"));
-          return;
-        }
-      }
-    };
+/* ---------------- VALUTAZIONE ---------------- */
+function setRating(v) {
+  rating = (rating === v) ? 0 : v;
+  var st = document.querySelectorAll(".star");
+  for (var i = 0; i < st.length; i++) st[i].classList.toggle("on", i < rating);
+  clearRatingError();
+  renderRatingText();
+  updateCTA();
+}
 
-    /* ---------------- VALUTAZIONE 1-5 ---------------- */
-    window.setRating = function (v) {
-      rating = (rating === v) ? 0 : v;
-      var btns = document.querySelectorAll(".star-btn");
-      for (var i = 0; i < btns.length; i++) {
-        btns[i].style.color = (i < rating) ? "#F2A35C" : "#d4d4d4";
-      }
-      renderRatingText();
-    };
-    function renderRatingText() {
-      document.getElementById("ratingText").textContent =
-        rating > 0 ? T("ratingFull", { v: rating, w: T("rat" + rating) }) : T("ratingNone");
-    }
-    function stars(n) {
-      var s = "";
-      for (var i = 0; i < 5; i++) s += (i < n) ? "★" : "☆";
-      return s;
-    }
+function renderRatingText() {
+  document.getElementById("ratingText").textContent =
+    rating > 0 ? T("ratingFull", { v: rating, w: T("rat" + rating) }) : T("ratingPick");
+}
 
-    document.getElementById("noteInput").addEventListener("input", function () {
-      document.getElementById("noteCount").textContent = this.value.length;
-    });
+/* ---- stato della valutazione obbligatoria ---- */
+function updateCTA() {
+  var b = document.getElementById("confirmBtn");
+  if (b) b.classList.toggle("is-locked", rating === 0);
+}
+function clearRatingError() {
+  document.getElementById("stars").classList.remove("error");
+  document.getElementById("ratingText").classList.remove("error");
+}
+function showRatingError() {
+  var st = document.getElementById("stars");
+  st.classList.remove("error");
+  void st.offsetWidth;                       // reflow → riavvia l'animazione shake
+  st.classList.add("error");
+  var rt = document.getElementById("ratingText");
+  rt.classList.add("error");
+  rt.textContent = T("toastRatingRequired");
+  toast(T("toastRatingRequired"), 2400);
+  tap();
+}
+function resetForNewPoint() {
+  rating = 0;
+  var st = document.querySelectorAll(".star");
+  for (var i = 0; i < st.length; i++) st[i].classList.remove("on");
+  clearRatingError();
+  renderRatingText();
+  updateCTA();
+  var n = document.getElementById("noteInput");
+  n.value = "";
+  document.getElementById("noteCount").textContent = "0";
+}
+function stars(n) {
+  var s = "";
+  for (var i = 0; i < 5; i++) s += (i < n) ? "★" : "☆";
+  return s;
+}
 
-    function updateCount() { document.getElementById("count").textContent = points.length; }
+document.getElementById("noteInput").addEventListener("input", function () {
+  document.getElementById("noteCount").textContent = this.value.length;
+});
 
-    /* ---------------- SVUOTA ---------------- */
-    window.clearAll = function () {
-      if (points.length === 0) { toast(T("toastClearEmpty")); return; }
-      if (!confirm(T("confirmClear", { n: points.length }))) return;
-      dataLayer.clearLayers();
-      points = [];
-      updateCount();
-      toast(T("toastCleared"));
-    };
+function updateCount() { document.getElementById("count").textContent = points.length; }
 
-    /* ---------------- CSV ---------------- */
-    function buildCSV() {
-      var header = "Type,Latitude,Longitude,Timestamp,Note,Rating";
-      var rows = points.map(function (p) {
-        return (p.type === "hot" ? "Hot" : "Cool") + "," +
-               p.lat.toFixed(6) + "," +
-               p.lng.toFixed(6) + "," +
-               csvField(fmtTS(p.ts)) + "," +
-               csvField(p.note || "") + "," +
-               (p.rating > 0 ? p.rating : "");
+/* ---------------- SVUOTA ---------------- */
+function clearAll() {
+  if (points.length === 0) { toast(T("toastClearEmpty")); return; }
+  if (!confirm(T("confirmClear", { n: points.length }))) return;
+  dataLayer.clearLayers();
+  points = [];
+  updateCount();
+  toast(T("toastCleared"));
+}
+
+/* ---------------- CSV / EXPORT ---------------- */
+function buildCSV() {
+  var header = "Type,Latitude,Longitude,Timestamp,Note,Rating";
+  var rows = points.map(function (p) {
+    return (p.type === "hot" ? "Hot" : "Cool") + "," +
+           p.lat.toFixed(6) + "," + p.lng.toFixed(6) + "," +
+           csvField(fmtTS(p.ts)) + "," + csvField(p.note || "") + "," +
+           (p.rating > 0 ? p.rating : "");
+  });
+  return "\uFEFF" + [header].concat(rows).join("\r\n");
+}
+function csvField(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }
+function fileName() {
+  var d = new Date();
+  return "shadow-hunters-" + currentCity + "-" + d.getFullYear() + "-" +
+         pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + ".csv";
+}
+function isMobileDevice() {
+  var ua = navigator.userAgent || "";
+  var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua) || (navigator.maxTouchPoints > 0 && coarse);
+}
+
+function exportCSV() {
+  if (points.length === 0) { toast(T("toastNoDataExport"), 2400); return; }
+  var csv = buildCSV(), name = fileName();
+  var file = new File([csv], name, { type: "text/csv;charset=utf-8" });
+  var cityShort = cityLabel(currentCity).split(" ")[0];
+
+  if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({
+      files: [file], title: T("shareTitle"),
+      text: T("shareText", { n: points.length, city: cityShort.toUpperCase() })
+    }).then(function () { toast(T("toastShared")); })
+      .catch(function (err) {
+        if (err && err.name === "AbortError") toast(T("toastShareAbort"));
+        else downloadAnchor(csv, name);
       });
-      return "\uFEFF" + [header].concat(rows).join("\r\n");
-    }
-    function csvField(v) {
-      v = String(v).replace(/"/g, '""');
-      return '"' + v + '"';
-    }
-    function fileName() {
-      var d = new Date();
-      var stamp = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
-      return "shadow-hunters-" + currentCity + "-" + stamp + ".csv";
-    }
+    return;
+  }
+  downloadAnchor(csv, name);
+}
 
-    function isMobileDevice() {
-      var ua = navigator.userAgent || "";
-      var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-      var touch = navigator.maxTouchPoints > 0;
-      return /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua) || (touch && coarse);
-    }
+function downloadAnchor(csv, name) {
+  try {
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name; a.rel = "noopener";
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 400);
+    toast(T("toastDownloaded", { name: name }));
+  } catch (e) {
+    var w = window.open("data:text/csv;charset=utf-8," + encodeURIComponent(csv), "_blank");
+    if (!w) copyText(csv, T("toastFallbackCopy"));
+  }
+}
 
-    window.exportCSV = function () {
-      if (points.length === 0) {
-        toast(T("toastNoDataExport"), 2600);
-        return;
-      }
-      var csv = buildCSV();
-      var name = fileName();
-      var file = new File([csv], name, { type: "text/csv;charset=utf-8" });
-      var cityShort = cityLabel(currentCity).split(" ")[0];
+function copyCSV() {
+  if (points.length === 0) { toast(T("toastNoDataCopy")); return; }
+  copyText(buildCSV(), T("toastCopied"));
+}
+function copyText(text, okMsg) {
+  function done() { toast(okMsg); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(function () { legacyCopy(text); done(); });
+  } else { legacyCopy(text); done(); }
+}
+function legacyCopy(text) {
+  var ta = document.createElement("textarea");
+  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
 
-      if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({
-          files: [file],
-          title: T("shareTitle"),
-          text: T("shareText", { n: points.length, city: cityShort.toUpperCase() })
-        }).then(function () {
-          toast(T("toastShared"));
-        }).catch(function (err) {
-          if (err && err.name === "AbortError") toast(T("toastShareAbort"));
-          else downloadAnchor(csv, name);
-        });
-        return;
-      }
-      downloadAnchor(csv, name);
-    };
+/* ---------------- DRAG-TO-DISMISS ---------------- */
+(function initDrag() {
+  var sheet = document.getElementById("sheet");
+  var handle = document.getElementById("grabber");
+  var startY = 0, dy = 0, dragging = false;
 
-    function downloadAnchor(csv, name) {
-      try {
-        var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        var a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = name;
-        a.rel = "noopener";
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function () {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(a.href);
-        }, 400);
-        toast(T("toastDownloaded", { name: name }));
-      } catch (e) {
-        var uri = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
-        var w = window.open(uri, "_blank");
-        if (!w) copyText(csv, T("toastFallbackCopy"));
-      }
-    }
+  handle.addEventListener("pointerdown", function (e) {
+    dragging = true; startY = e.clientY; dy = 0;
+    sheet.classList.add("dragging");
+    try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  handle.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    dy = Math.max(0, e.clientY - startY);
+    sheet.style.transform = "translateY(" + dy + "px)";
+  });
+  function end() {
+    if (!dragging) return;
+    dragging = false;
+    sheet.classList.remove("dragging");
+    sheet.style.transform = "";
+    if (dy > 96) cancelPending();
+  }
+  handle.addEventListener("pointerup", end);
+  handle.addEventListener("pointercancel", end);
+})();
 
-    window.copyCSV = function () {
-      if (points.length === 0) { toast(T("toastNoDataCopy")); return; }
-      copyText(buildCSV(), T("toastCopied"));
-    };
-    function copyText(text, okMsg) {
-      function done() { toast(okMsg); }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(done).catch(function () { legacyCopy(text); done(); });
-      } else { legacyCopy(text); done(); }
-    }
-    function legacyCopy(text) {
-      var ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      try { document.execCommand("copy"); } catch (e) {}
-      document.body.removeChild(ta);
-    }
+/* ---------------- UTILITY ---------------- */
+function fmtTS(ts) {
+  return pad(ts.getDate()) + "/" + pad(ts.getMonth() + 1) + "/" + ts.getFullYear() +
+         " " + pad(ts.getHours()) + ":" + pad(ts.getMinutes()) + ":" + pad(ts.getSeconds());
+}
+function pad(n) { return (n < 10 ? "0" : "") + n; }
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
-    /* ---------------- UTILITY ---------------- */
-    function fmtTS(ts) {
-      return pad(ts.getDate()) + "/" + pad(ts.getMonth() + 1) + "/" + ts.getFullYear() +
-             " " + pad(ts.getHours()) + ":" + pad(ts.getMinutes()) + ":" + pad(ts.getSeconds());
-    }
-    function pad(n) { return (n < 10 ? "0" : "") + n; }
-    function esc(s) {
-      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
+/* ---------------- GLOBALI (attributi onclick) ---------------- */
+window.setLang = setLang;
+window.goRome = goRome;
+window.goHelsinki = goHelsinki;
+window.toggleMode = toggleMode;
+window.setRating = setRating;
+window.confirmPending = confirmPending;
+window.cancelPending = cancelPending;
+window.removePoint = removePoint;
+window.clearAll = clearAll;
+window.exportCSV = exportCSV;
+window.copyCSV = copyCSV;
 
-    var toastTimer = null;
-    function toast(msg, ms) {
-      var el = document.getElementById("toast");
-      document.getElementById("toastText").textContent = msg;
-      el.classList.remove("hidden");
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(function () { el.classList.add("hidden"); }, ms || 1800);
-    }
-
-    /* ---------------- AVVIO ---------------- */
-    var stored = null;
-    try { stored = localStorage.getItem("shadowLang"); } catch (e) {}
-    applyLang(stored && I18N[stored] ? stored : "it");
-    refreshModeButtons();
-    renderRatingText();
-    updateCount();
-  </script>
+/* ---------------- AVVIO ---------------- */
+(function init() {
+  var stored = null;
+  try { stored = localStorage.getItem("shadowLang"); } catch (e) {}
+  applyLang(stored && I18N[stored] ? stored : "it");
+  refreshModeUI();
+  renderRatingText();
+  updateCTA();
+  updateCount();
+  goCity("rome");
+})();
+</script>
 </body>
 </html>
